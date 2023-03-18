@@ -194,6 +194,7 @@ async function execute(message) {
             status: '',
         };
         songs.push(song);
+        channel.send(song.title + " добавлена в плейлист")
     }
 
     if (!voiceConnection) {
