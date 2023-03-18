@@ -1,0 +1,8 @@
+{
+    "BOT_TOKEN": "Ключ бота",
+    "YOUTUBE_KEY" : "youtube-api-key",
+    "PREFIX" : "!",
+    "BOT_TEXT_CHANNEL_ID" : "айдишник канала для бота",
+    "PLAYLIST_PAGE_SIZE" : 10,
+    "MAX_PLAYLIST_ITEMS" : 50
+}
