@@ -1,4 +1,4 @@
-const {GatewayIntentBits, Client, EmbedBuilder, ButtonBuilder, ActionRowBuilder, resolvePartialEmoji} = require("discord.js");
+const {GatewayIntentBits, Client, EmbedBuilder, ButtonBuilder, ActionRowBuilder, Events} = require("discord.js");
 const ytdl = require("ytdl-core");
 const config = require("./config.json");
 const {joinVoiceChannel} = require('@discordjs/voice');
@@ -19,6 +19,7 @@ let voiceConnection;
 prefix = config.PREFIX;
 let channel;
 let playerMode = 'normal';
+let lastIndexOnPage = 0;
 
 const backId = 'back'
 const forwardId = 'forward'
@@ -36,6 +37,22 @@ player.on(AudioPlayerStatus.Idle, (prev, current) => {
     let previousSong = findLastPlayed('(Играет)');
     previousSong.status = '(Закончилась)'
     playNextSong();
+});
+
+client.on(Events.InteractionCreate, interaction => {
+    if (!interaction.isButton()) return;
+    let embed;
+    if (interaction.customId === backId) {
+        lastIndexOnPage = lastIndexOnPage - config.PLAYLIST_PAGE_SIZE;
+        embed = generateEmbedPlayList(lastIndexOnPage,lastIndexOnPage + config.PLAYLIST_PAGE_SIZE);
+    }
+    if (interaction.customId === forwardId) {
+        lastIndexOnPage = lastIndexOnPage + config.PLAYLIST_PAGE_SIZE;
+        embed = generateEmbedPlayList(lastIndexOnPage,lastIndexOnPage + config.PLAYLIST_PAGE_SIZE);
+    }
+    interaction.update({ embeds: [embed],
+        components: [new ActionRowBuilder().setComponents([backButton, forwardButton])
+    ]});
 });
 
 client.once("ready", () => {
@@ -117,8 +134,9 @@ function playNextSong() {
     play(voiceConnection);
 }
 
-function generateEmbedPlayList() {
-    let playListSongs = getPlayListSongs(0, config.PLAYLIST_PAGE_SIZE);
+function generateEmbedPlayList(start, end) {
+    console.log(start, end);
+    let playListSongs = getPlayListSongs(start ?? 0, end ?? config.PLAYLIST_PAGE_SIZE);
     let embedMessage = new EmbedBuilder()
         .setTitle('Плейлист');
     playListSongs.forEach((song) => {
@@ -131,7 +149,7 @@ function generateEmbedPlayList() {
 
 function getPlayListSongs(start, end) {
     let songsPagination = [];
-    for (let i= start; i <= end; i++) {
+    for (let i= start; i < end; i++) {
         if (songs[i]) {
             songsPagination.push(songs[i]);
         }
@@ -176,6 +194,7 @@ async function execute(message) {
             status: '',
         };
         songs.push(song);
+        channel.send(song.title + " добавлена в плейлист")
     }
 
     if (!voiceConnection) {
@@ -230,7 +249,6 @@ function findLastPlayed(status) {
 
 function repeat() {
     let song = findLastPlayed('(Закончилась)');
-    console.log(song, 321);
     song.status = '';
     play(voiceConnection);
 }
