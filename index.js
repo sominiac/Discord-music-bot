@@ -3,6 +3,7 @@ const ytdl = require("ytdl-core");
 const config = require("./config.json");
 const {joinVoiceChannel} = require('@discordjs/voice');
 const {createAudioPlayer, createAudioResource, AudioPlayerStatus} = require('@discordjs/voice');
+const fs = require("fs");
 
 const player = createAudioPlayer();
 
@@ -28,10 +29,15 @@ const backButton = new ButtonBuilder()
     .setLabel('Назад')
     .setCustomId(backId);
 
-const forwardButton =  new ButtonBuilder()
+const forwardButton = new ButtonBuilder()
     .setStyle('Secondary')
     .setLabel('Вперёд')
     .setCustomId(forwardId);
+
+process.on('uncaughtException', function(err) {
+    fs.writeFileSync('./last_playlist.json', JSON.stringify(songs, null, 2) , 'utf-8');
+    console.log(err.message);
+})
 
 player.on(AudioPlayerStatus.Idle, (prev, current) => {
     let previousSong = findLastPlayed('(Играет)');
@@ -44,15 +50,17 @@ client.on(Events.InteractionCreate, interaction => {
     let embed;
     if (interaction.customId === backId) {
         lastIndexOnPage = lastIndexOnPage - config.PLAYLIST_PAGE_SIZE;
-        embed = generateEmbedPlayList(lastIndexOnPage,lastIndexOnPage + config.PLAYLIST_PAGE_SIZE);
+        embed = generateEmbedPlayList(lastIndexOnPage, lastIndexOnPage + config.PLAYLIST_PAGE_SIZE);
     }
     if (interaction.customId === forwardId) {
         lastIndexOnPage = lastIndexOnPage + config.PLAYLIST_PAGE_SIZE;
-        embed = generateEmbedPlayList(lastIndexOnPage,lastIndexOnPage + config.PLAYLIST_PAGE_SIZE);
+        embed = generateEmbedPlayList(lastIndexOnPage, lastIndexOnPage + config.PLAYLIST_PAGE_SIZE);
     }
-    interaction.update({ embeds: [embed],
+    interaction.update({
+        embeds: [embed],
         components: [new ActionRowBuilder().setComponents([backButton, forwardButton])
-    ]});
+        ]
+    });
 });
 
 client.once("ready", () => {
@@ -115,7 +123,8 @@ client.on("messageCreate", async message => {
         channel.send({
             embeds: [embed],
             components: [new ActionRowBuilder().setComponents([backButton, forwardButton])
-            ]});
+            ]
+        });
         return null;
     }
     if (message.content.startsWith(`${prefix}cyclic`)) {
@@ -133,10 +142,41 @@ client.on("messageCreate", async message => {
         songs = shuffle(songs);
         return null;
     }
+    if (message.content.startsWith(`${prefix}recover`)) {
+        channel.send('Сейчас будет восстановлен прошлый плейлист')
+        songs = recoverSongs();
+        if (!voiceConnection) {
+            voiceConnection = await joinVoiceChannel(
+                {
+                    channelId: message.member.voice.channel.id,
+                    guildId: message.guild.id,
+                    adapterCreator: message.guild.voiceAdapterCreator
+                });
+        }
+        play(voiceConnection)
+        return null;
+    }
+    if (message.content.startsWith(`${prefix}repeatPlaylist`)) {
+        channel.send('Плейлист начнётся с начала')
+        changeSongsStatus('')
+        play(voiceConnection)
+        return null;
+    }
 });
 
 function playNextSong() {
     play(voiceConnection);
+}
+
+function recoverSongs() {
+    let file = fs.readFileSync('last_playlist.json', 'utf-8');
+    return JSON.parse(file);
+}
+
+function changeSongsStatus(status){
+    songs.forEach(song => {
+        song.status = status
+    })
 }
 
 function generateEmbedPlayList(start, end) {
@@ -146,7 +186,7 @@ function generateEmbedPlayList(start, end) {
         .setTitle('Плейлист');
     playListSongs.forEach((song) => {
         embedMessage.addFields(
-        { name: '\u200b', value: song.title + song.status, inline: false },
+            {name: '\u200b', value: song.title + song.status, inline: false},
         )
     })
     return embedMessage;
@@ -154,7 +194,7 @@ function generateEmbedPlayList(start, end) {
 
 function getPlayListSongs(start, end) {
     let songsPagination = [];
-    for (let i= start; i < end; i++) {
+    for (let i = start; i < end; i++) {
         if (songs[i]) {
             songsPagination.push(songs[i]);
         }
@@ -224,6 +264,7 @@ async function getBigPlayList(url, response) {
         await insertInSongsArray(response.items);
     } while (response.nextPageToken)
 }
+
 async function insertInSongsArray(response) {
     for (let song of response) {
         await insertSongInArray(song)
@@ -241,7 +282,7 @@ async function insertSongInArray(song) {
 }
 
 function shuffle(array) {
-    let currentIndex = array.length,  randomIndex;
+    let currentIndex = array.length, randomIndex;
 
     // While there remain elements to shuffle.
     while (currentIndex !== 0) {
@@ -259,7 +300,7 @@ function shuffle(array) {
 }
 
 function findNextSong() {
-    return songs.find( function (song) {
+    return songs.find(function (song) {
         return song.status === '';
     })
 }
