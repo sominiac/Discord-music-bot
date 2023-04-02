@@ -317,7 +317,7 @@ function repeat() {
     play(voiceConnection);
 }
 
-function play(guild) {
+async function play(guild) {
     if (songs.length !== 0) {
         let song = findNextSong();
         if (!song) {
@@ -333,7 +333,15 @@ function play(guild) {
             voiceConnection = '';
             return 0;
         }
-        const stream = ytdl(song.url, {filter: 'audioonly', highWaterMark: 1 << 25});
+        let options;
+        var data = await ytdl.getBasicInfo(song.url)
+        if (data.videoDetails.liveBroadcastDetails && data.videoDetails.liveBroadcastDetails.isLiveNow){
+            options = {highWaterMark: 1 << 25, quality: [91, 92, 93, 94, 95], liveBuffer: 2000};
+        } else {
+            options = {highWaterMark: 1 << 25, filter: 'audioonly', liveBuffer: 4000};
+        }
+
+        const stream = ytdl(song.url, options);
         var resource = createAudioResource(stream);
         song.status = '(Играет)';
         channel.send('Сейчас играет ' + song.title)
